@@ -247,3 +247,15 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+doc_events = {
+    "Sales Order": {
+        "before_validate": "sfa_crm.api.set_default_company"
+    },
+    "Quotation": {
+        "before_validate": "sfa_crm.api.set_default_company"
+    },
+    "Payment Entry": {
+        "before_validate": "sfa_crm.api.set_default_company"
+    }
+}
