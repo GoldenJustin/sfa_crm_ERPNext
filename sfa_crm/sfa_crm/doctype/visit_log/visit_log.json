@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-30 00:31:33.124340",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_rh9u",
+  "sales_person",
+  "customer",
+  "outcome",
+  "evidence_photo",
+  "custom_latitude",
+  "custom_longitude",
+  "column_break_qmgx",
+  "start_time",
+  "end_time",
+  "competitor_brands",
+  "amended_from",
+  "no_order_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_rh9u",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sales_person",
+   "fieldtype": "Link",
+   "label": "Sales Person",
+   "options": "Sales Person"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "label": "Outcome",
+   "options": "Order Taken\nNo Order"
+  },
+  {
+   "fieldname": "evidence_photo",
+   "fieldtype": "Attach Image",
+   "label": "Evidence Photo"
+  },
+  {
+   "fieldname": "custom_latitude",
+   "fieldtype": "Data",
+   "label": "Custom Latitude"
+  },
+  {
+   "fieldname": "custom_longitude",
+   "fieldtype": "Data",
+   "label": "Custom Longitude"
+  },
+  {
+   "fieldname": "column_break_qmgx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Datetime",
+   "label": "Start time"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Datetime",
+   "label": "End Time"
+  },
+  {
+   "fieldname": "competitor_brands",
+   "fieldtype": "Data",
+   "label": "Competitor Brands"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Visit Log",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "no_order_reason",
+   "fieldtype": "Small Text",
+   "label": "No Order Reason"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-06-15 12:40:59.646298",
+ "modified_by": "Administrator",
+ "module": "Sfa Crm",
+ "name": "Visit Log",
+ "owner": "jmsengi@sfgroup.co.tz",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

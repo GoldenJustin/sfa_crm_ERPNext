@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-12 14:28:50.292676",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sales_user",
+  "amount",
+  "receipt_photo",
+  "column_break_orvp",
+  "expense_type",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "sales_user",
+   "fieldtype": "Data",
+   "label": "Sales user"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Currency"
+  },
+  {
+   "fieldname": "receipt_photo",
+   "fieldtype": "Attach Image",
+   "label": "Receipt Photo"
+  },
+  {
+   "fieldname": "column_break_orvp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expense_type",
+   "fieldtype": "Data",
+   "label": "Expense type"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-15 12:40:43.120712",
+ "modified_by": "Administrator",
+ "module": "Sfa Crm",
+ "name": "SFA Expense",
+ "owner": "jmsengi@sfgroup.co.tz",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
