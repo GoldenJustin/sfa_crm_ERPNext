@@ -259,3 +259,4 @@ doc_events = {
         "before_validate": "sfa_crm.api.set_default_company"
     }
 }
+fixtures = ["Report", "Custom Field", "Property Setter"]
