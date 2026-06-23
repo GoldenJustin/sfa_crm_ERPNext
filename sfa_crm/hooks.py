@@ -27,3 +27,19 @@ doc_events = {
     }
 }
 fixtures = ["Report", "Custom Field", "Property Setter"]
+
+# Fixtures - these get exported to app files via bench export-fixtures
+fixtures = [
+    # Client Scripts
+    {"dt": "Client Script", "filters": [["dt", "in", [
+        "Customer Territory Map",
+        "Sales Team Tracker",
+        "Salesperson Location Log"
+    ]]]},
+
+    # Reports
+    {"dt": "Report", "filters": [["module", "=", "Sfa Crm"]]},
+
+    # Custom Doctypes created via UI
+    {"dt": "DocType", "filters": [["module", "=", "Sfa Crm"], ["custom", "=", 1]]},
+]
