@@ -10,6 +10,7 @@ app_license = "mit"
 # Allow the mobile app to hit our custom login endpoint without being logged in
 allow_guest_to_call = [
     "sfa_crm.api.sfa_login"
+ "sfa_crm.api.get_site_logo"
 ]
 
 # Include JS/CSS

@@ -1,15 +1,64 @@
 import frappe
 import json
+import traceback
+import time
 
-def set_default_company(doc, method=None):
-    if hasattr(doc, "company") and not doc.get("company"):
-        company = (
-            frappe.defaults.get_user_default("Company")
-            or frappe.db.get_single_value("Global Defaults", "default_company")
-            or frappe.db.get_value("Company", {}, "name")
-        )
-        if company:
-            doc.company = company
+def get_single_val(doctype, fieldname):
+    res = frappe.db.sql("SELECT value FROM tabSingles WHERE doctype=%s AND field=%s", (doctype, fieldname))
+    return res[0][0] if res else None
+
+def resolve_customer_or_lead(input_name):
+    if frappe.db.exists("Customer", input_name): return "Customer", input_name
+    cust = frappe.db.get_value("Customer", {"customer_name": input_name}, "name")
+    if cust: return "Customer", cust
+    if frappe.db.exists("Lead", input_name): return "Lead", input_name
+    lead = frappe.db.get_value("Lead", {"lead_name": input_name}, "name")
+    if lead: return "Lead", lead
+    return None, None
+
+def process_base64_image(base64_data, doctype, docname, fieldname=None):
+    if "," in base64_data: base64_data = base64_data.split(",")[1]
+    file_doc = frappe.get_doc({
+        "doctype": "File", "file_name": f"img_{int(time.time())}_{frappe.generate_hash(length=4)}.jpg",
+        "attached_to_doctype": doctype, "attached_to_name": docname,
+        "content": base64_data, "decode": True, "is_private": 0
+    })
+    file_doc.insert(ignore_permissions=True)
+    if fieldname:
+        frappe.db.sql(f"UPDATE `tab{doctype}` SET `{fieldname}`=%s WHERE name=%s", (file_doc.file_url, docname))
+
+def convert_lead_to_customer(lead_id, company):
+    lead = frappe.get_doc("Lead", lead_id)
+    cust = frappe.new_doc("Customer")
+    cust.customer_name = lead.lead_name or lead.company_name or lead.first_name
+    cust.lead_name = lead.name
+    cust.company = company
+    
+    cg = get_single_val("Selling Settings", "customer_group")
+    if not cg:
+        cg_list = frappe.db.get_all("Customer Group", limit=1)
+        cg = cg_list[0].name if cg_list else "Commercial"
+    cust.customer_group = cg
+    
+    cust.territory = lead.territory
+    cust.custom_latitude = lead.custom_latitude
+    cust.custom_longitude = lead.custom_longitude
+    cust.mobile_no = lead.mobile_no
+    
+    cust.image = lead.image
+    cust.custom_storefront = lead.image 
+    cust.custom_business_type = getattr(lead, 'custom_business_type', None)
+    
+    cust.flags.ignore_mandatory = True
+    cust.insert(ignore_permissions=True)
+    frappe.db.sql("UPDATE `tabLead` SET status='Converted' WHERE name=%s", (lead.name,))
+    return cust.name
+
+@frappe.whitelist(allow_guest=True)
+def get_site_logo():
+    logo = get_single_val("Website Settings", "app_logo") or get_single_val("Website Settings", "banner_image")
+    if logo: return {"logo_url": frappe.utils.get_url(logo)}
+    return {"logo_url": None}
 
 @frappe.whitelist(allow_guest=True)
 def sfa_login(usr, pwd):
@@ -17,458 +66,135 @@ def sfa_login(usr, pwd):
         login_manager = frappe.auth.LoginManager()
         login_manager.authenticate(user=usr, pwd=pwd)
         login_manager.post_login()
-    except frappe.exceptions.AuthenticationError:
-        frappe.db.set_value("User", usr, "last_login", None, update_modified=False)
-        frappe.local.response['http_status_code'] = 401
-        frappe.local.response['message'] = "Invalid Login Credentials"
-        return
-    except Exception as e:
-        frappe.log_error(title="SFA Login Exception", message=frappe.get_traceback())
-        frappe.local.response['http_status_code'] = 500
-        frappe.local.response['message'] = "Server error during login."
-        return
-
-    # === TEMPORARILY DISABLED ROLE CHECK FOR PRESENTATION ===
-    # user_roles = frappe.get_roles(frappe.session.user)
-    # if "SFA Mobile User" not in user_roles:
-    #     login_manager.logout()
-    #     frappe.local.response['http_status_code'] = 403
-    #     frappe.local.response['message'] = "User missing 'SFA Mobile User' role."
-    #     return
-    # ========================================================
-
-    frappe.local.response.message = {
-        "message": "Logged In",
-        "home_page": "/app",
-        "full_name": frappe.session.user_full_name
-    }
-
-@frappe.whitelist(allow_guest=False)
-def create_erp_document(payload):
-    try:
-        data = json.loads(payload)
-        if not data.get("company"):
-            company = frappe.db.get_value("Company", {}, "name")
-            if not company:
-                frappe.throw("No Company found in ERPNext database!")
-            data["company"] = company
-        
-        doc = frappe.get_doc(data)
-        doc.insert(ignore_permissions=True)
-        if data.get("docstatus") == 1:
-            doc.submit()
-        return doc.name
+        frappe.local.response.message = {"message": "Logged In", "home_page": "/app", "full_name": frappe.session.user_full_name}
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "SFA CRM Sync Error")
-        raise
+        frappe.local.response['http_status_code'] = 401
+        frappe.local.response['message'] = "Invalid Credentials"
 
 @frappe.whitelist()
 def get_sfa_settings():
     try:
-        settings = frappe.get_doc("SFA Settings")
-        user = frappe.session.user
-        user_roles = frappe.get_roles(user)
-        
-        disabled_features = set()
+        logo = get_single_val("Website Settings", "app_logo") or get_single_val("Website Settings", "banner_image")
+        company_name = get_single_val("SFA Settings", "company_name_override")
+        if not company_name: company_name = frappe.defaults.get_user_default("Company")
+        if not company_name:
+            c_list = frappe.db.get_all("Company", limit=1)
+            company_name = c_list[0].name if c_list else "Koda Technologies"
+            
+        # Hard override if the DB defaults to AKO GROUP
+        if company_name == "AKO GROUP": company_name = "Koda Technologies"
 
-        for p in settings.permissions:
-            if p.disabled:
-                is_match = (p.apply_to == 'User' and p.user_or_role == user) or \
-                           (p.apply_to == 'Role' and p.user_or_role in user_roles)
-                if is_match:
-                    disabled_features.add(p.feature.lower().replace(" ", "_"))
-        
+        enable_del = get_single_val("SFA Settings", "enable_delivery_module") or 0
+        enable_exp = get_single_val("SFA Settings", "enable_expense_module") or 0
+
         return {
-            "logo_url": settings.app_logo,
-            "company_name": settings.company_name_override,
-            "disabled_features": list(disabled_features)
+            "logo_url": frappe.utils.get_url(logo) if logo else None,
+            "company_name": company_name,
+            "enable_delivery_module": int(enable_del),
+            "enable_expense_module": int(enable_exp)
         }
-    except frappe.DoesNotExistError:
-        return {
-            "logo_url": None,
-            "company_name": None,
-            "disabled_features": []
-        }
+    except Exception:
+        return {"logo_url": None, "company_name": "Koda Technologies", "enable_delivery_module": 0, "enable_expense_module": 0}
 
 @frappe.whitelist()
-def get_map_data():
-    customers = frappe.get_all(
-        "Customer",
-        filters={
-            "custom_latitude": ["is", "set"],
-            "custom_longitude": ["is", "set"],
-        },
-        fields=["name", "customer_name", "custom_latitude", "custom_longitude", "territory"],
-        limit=500
-    )
-    return customers
+def sync_client(payload):
+    data = json.loads(payload)
+    try:
+        doc = frappe.new_doc("Lead")
+        doc.first_name = data.get("name", "Unknown")
+        doc.lead_name = data.get("name", "Unknown")
+        
+        comp_list = frappe.db.get_all("Company", limit=1)
+        doc.company = frappe.defaults.get_user_default("Company") or (comp_list[0].name if comp_list else None)
+        
+        t_list = frappe.db.get_all("Territory", limit=1)
+        doc.territory = t_list[0].name if t_list else "All Territories"
+        
+        doc.mobile_no = data.get("phone")
+        doc.phone = data.get("phone")
+        doc.custom_business_type = data.get("businessType")
+        doc.custom_latitude = data.get("lat")
+        doc.custom_longitude = data.get("lng")
+        doc.flags.ignore_mandatory = True
+        doc.insert(ignore_permissions=True)
+
+        notes = data.get("notes", "")
+        role = data.get("contactRole", "")
+        owner_phone = data.get("ownerPhone", "")
+        comment_text = f"**KYC Details**\nRole: {role}\nOwner Phone: {owner_phone}\n\n**Observations:**\n{notes}"
+        doc.add_comment("Comment", text=comment_text)
+
+        photos = data.get("photosBase64", [])
+        for i, photo_b64 in enumerate(photos):
+            fname = "image" if i == 0 else None
+            process_base64_image(photo_b64, "Lead", doc.name, fname)
+
+        frappe.db.commit()
+        return {"success": True, "name": doc.name}
+    except Exception as e: return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+@frappe.whitelist()
+def sync_visit(payload):
+    data = json.loads(payload)
+    try:
+        doctype_found, docname_found = resolve_customer_or_lead(data.get("customer"))
+        if not doctype_found: return {"success": False, "error": f"Client '{data.get('customer')}' not found."}
+        
+        comp_list = frappe.db.get_all("Company", limit=1)
+        company = frappe.defaults.get_user_default("Company") or (comp_list[0].name if comp_list else None)
+
+        if doctype_found == "Lead": docname_found = convert_lead_to_customer(docname_found, company)
+
+        doc = frappe.get_doc({
+            "doctype": "Visit Log", "sales_person": frappe.session.user, "customer": docname_found,
+            "start_time": data.get("start_time", "").replace("T", " ")[:19], "end_time": data.get("end_time", "").replace("T", " ")[:19],
+            "outcome": data.get("outcome"), "no_order_reason": data.get("no_order_reason"),
+            "custom_latitude": data.get("lat"), "custom_longitude": data.get("lng")
+        })
+        doc.flags.ignore_mandatory = True
+        doc.insert(ignore_permissions=True)
+
+        if data.get("photoBase64"):
+            process_base64_image(data.get("photoBase64"), "Visit Log", doc.name, "evidence_photo")
+
+        frappe.db.commit()
+        return {"success": True, "name": doc.name}
+    except Exception as e: return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+@frappe.whitelist()
+def sync_order(doc_type, payload):
+    data = json.loads(payload)
+    try:
+        doctype_found, docname_found = resolve_customer_or_lead(data.get("customer"))
+        if not doctype_found: return {"success": False, "error": f"Customer/Lead '{data.get('customer')}' not found."}
+        
+        comp_list = frappe.db.get_all("Company", limit=1)
+        company = frappe.defaults.get_user_default("Company") or (comp_list[0].name if comp_list else None)
+        
+        if doctype_found == "Lead": docname_found = convert_lead_to_customer(docname_found, company)
+            
+        data["customer"] = docname_found
+        data["company"] = company
+        data["doctype"] = doc_type
+        data["docstatus"] = 1
+        
+        doc = frappe.get_doc(data)
+        doc.flags.ignore_mandatory = True
+        doc.insert(ignore_permissions=True)
+        doc.submit()
+        return {"success": True, "name": doc.name}
+    except Exception as e: return {"success": False, "error": str(e), "trace": traceback.format_exc()}
 
 @frappe.whitelist()
 def force_log_location(latitude, longitude, timestamp, activity):
     try:
-        # Create doc ignoring permissions
-        doc = frappe.get_doc({
-            "doctype": "Salesperson Location Log",
-            "sales_person": frappe.session.user, # Safely use email ID as identifier
-            "latitude": latitude,
-            "longitude": longitude,
-            "timestamp": timestamp,
-            "activity": activity
-        })
-        doc.insert(ignore_permissions=True)
-        frappe.db.commit() # Force save immediately
-        return {"status": "success", "name": doc.name}
-    except Exception as e:
-        frappe.log_error("Force Location Log Failed", str(e))
-        return {"status": "error", "message": str(e)}
-
-def run_full_setup():
-    """
-    Run this once to create all DocTypes, Roles, Reports, and Client Scripts.
-    Execute with: bench --site SITENAME run-script apps/sfa_crm/setup.py
-    """
-    import os
-    frappe.flags.in_import = True
-
-    print("Step 1: Creating Role: SFA Mobile User...")
-    if not frappe.db.exists("Role", "SFA Mobile User"):
-        frappe.get_doc({
-            "doctype": "Role",
-            "role_name": "SFA Mobile User",
-            "desk_access": 1
-        }).insert(ignore_permissions=True)
+        frappe.get_doc({"doctype": "Salesperson Location Log", "sales_person": frappe.session.user, "latitude": latitude, "longitude": longitude, "timestamp": timestamp, "activity": activity}).insert(ignore_permissions=True)
         frappe.db.commit()
-        print("  Role created.")
-    else:
-        print("  Role already exists.")
+        return {"status": "success"}
+    except Exception: return {"status": "error"}
 
-    print("Step 2: Creating SFA Feature Permission child DocType...")
-    if not frappe.db.exists("DocType", "SFA Feature Permission"):
-        frappe.get_doc({
-            "doctype": "DocType",
-            "name": "SFA Feature Permission",
-            "module": "Sfa Crm",
-            "custom": 1,
-            "istable": 1,
-            "fields": [
-                {"fieldname": "apply_to", "label": "Apply To", "fieldtype": "Select", "options": "User\nRole", "in_list_view": 1},
-                {"fieldname": "user_or_role", "label": "User or Role", "fieldtype": "Dynamic Link", "options": "apply_to", "in_list_view": 1},
-                {"fieldname": "feature", "label": "Feature", "fieldtype": "Select", "options": "Expenses\nCustomers\nOrders\nPayments", "in_list_view": 1},
-                {"fieldname": "disabled", "label": "Disabled", "fieldtype": "Check", "default": "1", "in_list_view": 1}
-            ]
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  SFA Feature Permission created.")
-    else:
-        print("  SFA Feature Permission already exists.")
+def set_default_company(doc, method):
+    if not doc.company:
+        comp_list = frappe.db.get_all('Company', limit=1)
+        doc.company = frappe.defaults.get_user_default('Company') or (comp_list[0].name if comp_list else None)
 
-    print("Step 3: Creating SFA Settings singleton DocType...")
-    if not frappe.db.exists("DocType", "SFA Settings"):
-        frappe.get_doc({
-            "doctype": "DocType",
-            "name": "SFA Settings",
-            "module": "Sfa Crm",
-            "custom": 1,
-            "issingle": 1,
-            "fields": [
-                {"fieldname": "app_logo", "label": "App Logo", "fieldtype": "Attach Image"},
-                {"fieldname": "company_name_override", "label": "Company Name Override", "fieldtype": "Data"},
-                {"fieldname": "sb_perms", "label": "App Permissions", "fieldtype": "Section Break"},
-                {"fieldname": "permissions", "label": "Feature Permissions", "fieldtype": "Table", "options": "SFA Feature Permission"}
-            ]
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  SFA Settings created.")
-    else:
-        print("  SFA Settings already exists.")
-
-    print("Step 4: Creating Route Customer child DocType...")
-    if not frappe.db.exists("DocType", "Route Customer"):
-        frappe.get_doc({
-            "doctype": "DocType",
-            "name": "Route Customer",
-            "module": "Sfa Crm",
-            "custom": 1,
-            "istable": 1,
-            "fields": [
-                {"fieldname": "customer", "label": "Customer", "fieldtype": "Link", "options": "Customer", "in_list_view": 1},
-                {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data", "fetch_from": "customer.customer_name", "read_only": 1, "in_list_view": 1}
-            ]
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  Route Customer created.")
-    else:
-        print("  Route Customer already exists.")
-
-    print("Step 5: Creating Sales Route DocType...")
-    if not frappe.db.exists("DocType", "Sales Route"):
-        frappe.get_doc({
-            "doctype": "DocType",
-            "name": "Sales Route",
-            "module": "Sfa Crm",
-            "custom": 1,
-            "fields": [
-                {"fieldname": "route_name", "label": "Route Name", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
-                {"fieldname": "sales_person_user", "label": "Assigned To (User)", "fieldtype": "Link", "options": "User", "reqd": 1, "in_list_view": 1},
-                {"fieldname": "sb_customers", "label": "Customers in this Route", "fieldtype": "Section Break"},
-                {"fieldname": "customers", "label": "Customers", "fieldtype": "Table", "options": "Route Customer"}
-            ]
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  Sales Route created.")
-    else:
-        print("  Sales Route already exists.")
-
-    print("Step 6: Creating Salesperson Tracking Map DocType...")
-    if not frappe.db.exists("DocType", "Salesperson Tracking Map"):
-        frappe.get_doc({
-            "doctype": "DocType",
-            "name": "Salesperson Tracking Map",
-            "module": "Sfa Crm",
-            "custom": 1,
-            "issingle": 0,
-            "fields": [
-                {"fieldname": "sales_person", "label": "Salesperson Email", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
-                {"fieldname": "date", "label": "Date", "fieldtype": "Date", "default": "Today", "reqd": 1, "in_list_view": 1},
-                {"fieldname": "map_view", "label": "Map View", "fieldtype": "HTML"}
-            ]
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  Salesperson Tracking Map created.")
-    else:
-        print("  Salesperson Tracking Map already exists.")
-
-    print("Step 7: Creating SFA Leads Report...")
-    if not frappe.db.exists("Report", "SFA Leads"):
-        frappe.get_doc({
-            "doctype": "Report",
-            "report_name": "SFA Leads",
-            "ref_doctype": "Customer",
-            "report_type": "Query Report",
-            "is_standard": "Yes",
-            "module": "Sfa Crm",
-            "query": """SELECT
-    c.name as 'Customer:Link/Customer:200',
-    c.customer_name as 'Customer Name:Data:250',
-    c.territory as 'Territory:Link/Territory:150',
-    c.creation as 'Created On:Datetime:150'
-FROM `tabCustomer` c
-LEFT JOIN `tabSales Order` so ON c.name = so.customer
-WHERE c.disabled = 0
-GROUP BY c.name
-HAVING COUNT(so.name) = 0
-ORDER BY c.creation DESC"""
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  SFA Leads Report created.")
-    else:
-        print("  SFA Leads Report already exists.")
-
-    print("Step 8: Creating Daily Collections Report...")
-    if not frappe.db.exists("Report", "SFA Daily Collections"):
-        frappe.get_doc({
-            "doctype": "Report",
-            "report_name": "SFA Daily Collections",
-            "ref_doctype": "Payment Entry",
-            "report_type": "Query Report",
-            "is_standard": "Yes",
-            "module": "Sfa Crm",
-            "query": """SELECT
-    pe.posting_date as 'Date:Date:120',
-    u.full_name as 'Collected By:Data:200',
-    pe.party_name as 'Customer:Data:200',
-    pe.mode_of_payment as 'Mode:Data:120',
-    pe.paid_amount as 'Amount:Currency:150'
-FROM `tabPayment Entry` pe
-JOIN `tabUser` u ON pe.owner = u.email
-WHERE pe.docstatus = 1 AND pe.payment_type = 'Receive'
-ORDER BY pe.posting_date DESC"""
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  SFA Daily Collections Report created.")
-    else:
-        print("  SFA Daily Collections Report already exists.")
-
-    print("Step 9: Creating Animated Tracker Map Client Script...")
-    if not frappe.db.exists("Client Script", "SFA Animated Tracker Map"):
-        tracker_script = """frappe.ui.form.on("Salesperson Tracking Map", {
-    refresh(frm) {
-        frm.add_custom_button(__('Load Map'), () => { frm.trigger('render_map'); });
-        if (frm.doc.sales_person && frm.doc.date) {
-            frm.trigger('render_map');
-        }
-    },
-    sales_person(frm) { if (frm.doc.sales_person && frm.doc.date) frm.trigger('render_map'); },
-    date(frm) { if (frm.doc.sales_person && frm.doc.date) frm.trigger('render_map'); },
-    render_map(frm) {
-        if (!frm.doc.sales_person || !frm.doc.date) {
-            frappe.msgprint("Please enter a Salesperson Email and Date first.");
-            return;
-        }
-        frm.get_field("map_view").$wrapper.html(`
-            <div style="padding: 10px; border: 1px solid #d1d8dd; border-radius: 6px; margin-top: 10px;">
-                <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                    <button id="sfa-btn-play" class="btn btn-primary btn-sm">▶ Play Route</button>
-                    <button id="sfa-btn-pause" class="btn btn-default btn-sm">⏸ Pause</button>
-                    <button id="sfa-btn-reset" class="btn btn-default btn-sm">⏮ Reset</button>
-                    <span id="sfa-tracker-info" style="font-weight: bold; color: #555; font-size: 12px;"></span>
-                </div>
-                <div id="sfa_tracker_map" style="height: 550px; width: 100%; z-index: 1; border-radius: 4px;"></div>
-            </div>
-        `);
-        let map_div = frm.get_field("map_view").$wrapper.find('#sfa_tracker_map')[0];
-        frappe.call({
-            method: "frappe.client.get_list",
-            args: {
-                doctype: "Salesperson Location Log",
-                filters: { "sales_person": frm.doc.sales_person, "timestamp": ["between", [frm.doc.date + " 00:00:00", frm.doc.date + " 23:59:59"]] },
-                fields: ["latitude", "longitude", "timestamp", "activity"],
-                limit: 2000,
-                order_by: "timestamp asc"
-            },
-            callback: function(r) {
-                let logs = (r.message || []).filter(l => l.latitude && l.longitude);
-                if (logs.length === 0) {
-                    frm.get_field("map_view").$wrapper.find('#sfa-tracker-info').text("No location logs found for this date and user.");
-                    frm.get_field("map_view").$wrapper.find('#sfa_tracker_map').html('<div style="display:flex;align-items:center;justify-content:center;height:100%;color:gray;font-size:16px;">No data to display</div>');
-                    return;
-                }
-                frm.get_field("map_view").$wrapper.find('#sfa-tracker-info').text(`Found ${logs.length} location points`);
-                if (frm.sfa_map_instance) frm.sfa_map_instance.remove();
-                frm.sfa_map_instance = L.map(map_div).setView([parseFloat(logs[0].latitude), parseFloat(logs[0].longitude)], 14);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(frm.sfa_map_instance);
-                let latlngs = logs.map(l => [parseFloat(l.latitude), parseFloat(l.longitude)]);
-                L.polyline(latlngs, { color: '#1976D2', weight: 3, opacity: 0.7 }).addTo(frm.sfa_map_instance);
-                let startIcon = L.divIcon({ html: '<div style="background:#4CAF50;width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>', iconSize: [14, 14] });
-                let endIcon = L.divIcon({ html: '<div style="background:#D32F2F;width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>', iconSize: [14, 14] });
-                L.marker(latlngs[0], { icon: startIcon }).addTo(frm.sfa_map_instance).bindPopup("Start: " + logs[0].timestamp);
-                L.marker(latlngs[latlngs.length - 1], { icon: endIcon }).addTo(frm.sfa_map_instance).bindPopup("End: " + logs[logs.length - 1].timestamp);
-                let movingMarker = L.circleMarker(latlngs[0], { radius: 9, fillColor: "#FF9800", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(frm.sfa_map_instance);
-                let currentIndex = 0;
-                let timer = null;
-                const updateStatus = (i) => {
-                    frm.get_field("map_view").$wrapper.find('#sfa-tracker-info').text(`Point ${i + 1}/${logs.length} | Time: ${logs[i].timestamp} | ${logs[i].activity}`);
-                };
-                const playRoute = () => {
-                    clearInterval(timer);
-                    timer = setInterval(() => {
-                        if (currentIndex >= latlngs.length) {
-                            clearInterval(timer);
-                            frm.get_field("map_view").$wrapper.find('#sfa-tracker-info').text("Route finished.");
-                            return;
-                        }
-                        movingMarker.setLatLng(latlngs[currentIndex]);
-                        frm.sfa_map_instance.panTo(latlngs[currentIndex], { animate: true });
-                        updateStatus(currentIndex);
-                        currentIndex++;
-                    }, 800);
-                };
-                frm.get_field("map_view").$wrapper.find('#sfa-btn-play').on('click', playRoute);
-                frm.get_field("map_view").$wrapper.find('#sfa-btn-pause').on('click', () => clearInterval(timer));
-                frm.get_field("map_view").$wrapper.find('#sfa-btn-reset').on('click', () => { clearInterval(timer); currentIndex = 0; movingMarker.setLatLng(latlngs[0]); frm.sfa_map_instance.setView(latlngs[0], 14); updateStatus(0); });
-                updateStatus(0);
-            }
-        });
-    }
-});"""
-        frappe.get_doc({
-            "doctype": "Client Script",
-            "name": "SFA Animated Tracker Map",
-            "dt": "Salesperson Tracking Map",
-            "script": tracker_script,
-            "enabled": 1
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  Animated Tracker Map Client Script created.")
-    else:
-        print("  Animated Tracker Map Client Script already exists.")
-
-    print("Step 10: Creating Customer Territory Map Client Script...")
-    if not frappe.db.exists("Client Script", "SFA Customer Territory Map"):
-        territory_script = """frappe.ui.form.on("Customer Territory Map", {
-    refresh(frm) {
-        frm.add_custom_button(__('Load Customer Map'), () => { frm.trigger('render_map'); });
-    },
-    render_map(frm) {
-        frm.get_field("map_view").$wrapper.html(`
-            <div style="padding: 10px; border: 1px solid #d1d8dd; border-radius: 6px; margin-top: 10px;">
-                <h4 style="margin-top:0;">Customer Territory Map</h4>
-                <div id="sfa_territory_map" style="height: 550px; width: 100%;"></div>
-            </div>
-        `);
-        let map_div = frm.get_field("map_view").$wrapper.find('#sfa_territory_map')[0];
-        frappe.call({
-            method: "sfa_crm.api.get_map_data",
-            callback: function(r) {
-                let customers = r.message || [];
-                if (frm.territory_map) frm.territory_map.remove();
-                let centerLat = -6.3690, centerLng = 34.8888;
-                if (customers.length > 0) { centerLat = parseFloat(customers[0].custom_latitude); centerLng = parseFloat(customers[0].custom_longitude); }
-                frm.territory_map = L.map(map_div).setView([centerLat, centerLng], 8);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(frm.territory_map);
-                customers.forEach(c => {
-                    let lat = parseFloat(c.custom_latitude), lng = parseFloat(c.custom_longitude);
-                    if (lat && lng) L.marker([lat, lng]).addTo(frm.territory_map).bindPopup(`<b>${c.customer_name}</b><br>Territory: ${c.territory || 'N/A'}`);
-                });
-                if (customers.length === 0) frappe.msgprint("No customers with GPS coordinates found.");
-            }
-        });
-    }
-});"""
-        frappe.get_doc({
-            "doctype": "Client Script",
-            "name": "SFA Customer Territory Map",
-            "dt": "Customer Territory Map",
-            "script": territory_script,
-            "enabled": 1
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        print("  Customer Territory Map Client Script created.")
-    else:
-        print("  Customer Territory Map Client Script already exists.")
-
-    print("Step 11: Updating hooks.py for Git fixtures export...")
-    hooks_path = frappe.get_app_path('sfa_crm', 'hooks.py')
-    with open(hooks_path, 'r') as f:
-        hooks_content = f.read()
-    if 'fixtures' not in hooks_content:
-        with open(hooks_path, 'a') as f:
-            f.write('\n# Export these to Git via bench export-fixtures\n')
-            f.write('fixtures = [\n')
-            f.write('    "Role",\n')
-            f.write('    "Client Script",\n')
-            f.write('    "Report",\n')
-            f.write('    "Custom Field",\n')
-            f.write('    "Property Setter",\n')
-            f.write('    {"dt": "DocType", "filters": [["custom", "=", 1], ["module", "=", "Sfa Crm"]]}\n')
-            f.write(']\n')
-        print("  hooks.py updated with fixtures.")
-    else:
-        print("  hooks.py already has fixtures defined.")
-
-    print("Step 12: Exporting fixtures to Git folder...")
-    import subprocess
-    result = subprocess.run(['bench', 'export-fixtures'], capture_output=True, text=True, cwd='/home/frappe/frappe-bench')
-    print(result.stdout)
-    if result.returncode != 0:
-        print("Export error:", result.stderr)
-    else:
-        print("All fixtures exported to apps/sfa_crm/sfa_crm/fixtures/")
-
-    print("")
-    print("=" * 60)
-    print("SFA CRM SETUP COMPLETE!")
-    print("=" * 60)
-    print("Created:")
-    print("  Role: SFA Mobile User")
-    print("  DocType: SFA Settings")
-    print("  DocType: SFA Feature Permission")
-    print("  DocType: Sales Route")
-    print("  DocType: Route Customer")
-    print("  DocType: Salesperson Tracking Map")
-    print("  Report: SFA Leads")
-    print("  Report: SFA Daily Collections")
-    print("  Client Script: SFA Animated Tracker Map")
-    print("  Client Script: SFA Customer Territory Map")
-    print("  Git Export: Complete (bench migrate on new server to install)")
-    print("=" * 60)
