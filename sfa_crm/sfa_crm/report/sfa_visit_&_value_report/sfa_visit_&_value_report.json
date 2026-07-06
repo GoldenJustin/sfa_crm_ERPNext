@@ -16,7 +16,7 @@
  "name": "SFA Visit & Value Report",
  "owner": "Administrator",
  "prepared_report": 0,
- "query": "SELECT \n    v.owner AS \"Salesperson:Link/User:150\",\n    v.customer AS \"Customer:Link/Customer:150\",\n    v.custom_latitude AS \"Lat:Data:100\",\n    v.custom_longitude AS \"Lng:Data:100\",\n    v.start_time AS \"Check-In:Datetime:150\",\n    TIMESTAMPDIFF(MINUTE, v.start_time, v.end_time) AS \"Duration (Mins):Int:100\",\n    v.outcome AS \"Outcome:Data:100\",\n    IFNULL(SUM(s.grand_total), 0) AS \"Order Value:Currency:120\"\nFROM `tabVisit Log` v\nLEFT JOIN `tabSales Order` s ON v.customer = s.customer AND DATE(v.start_time) = s.transaction_date AND s.docstatus = 1\nGROUP BY v.name\nORDER BY v.start_time DESC",
+ "query": "SELECT v.owner AS \"Salesperson:Link/User:150\", v.customer AS \"Customer:Link/Customer:150\", v.custom_latitude AS \"Lat:Data:100\", v.custom_longitude AS \"Lng:Data:100\", v.start_time AS \"Check-In:Datetime:150\", CONCAT(FLOOR(TIMESTAMPDIFF(SECOND, v.start_time, v.end_time) / 60), ' min ', TIMESTAMPDIFF(SECOND, v.start_time, v.end_time) % 60, ' sec') AS \"Duration:Data:120\", v.outcome AS \"Outcome:Data:100\", IF(v.outcome = 'No Order', 0, IFNULL((SELECT SUM(grand_total) FROM `tabSales Order` WHERE customer = v.customer AND docstatus = 1 AND creation BETWEEN v.start_time AND DATE_ADD(v.end_time, INTERVAL 5 MINUTE)), 0)) AS \"Order Value:Currency:120\" FROM `tabVisit Log` v ORDER BY v.start_time DESC",
  "ref_doctype": "Visit Log",
  "report_name": "SFA Visit & Value Report",
  "report_type": "Query Report",
