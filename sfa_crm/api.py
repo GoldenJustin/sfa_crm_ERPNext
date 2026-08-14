@@ -2,6 +2,7 @@ import frappe
 import json
 import traceback
 import time
+from frappe.utils.password import get_decrypted_password
 
 def get_single_val(doctype, fieldname):
     res = frappe.db.sql("SELECT value FROM tabSingles WHERE doctype=%s AND field=%s", (doctype, fieldname))
@@ -131,6 +132,44 @@ def sfa_login(usr, pwd):
     except Exception:
         frappe.local.response['http_status_code'] = 401
         frappe.local.response['message'] = "Invalid Credentials"
+
+@frappe.whitelist()
+def get_api_token():
+    """Return (creating if necessary) the logged-in user's permanent API token.
+
+    Called by the CherryCRM mobile app immediately after login, while the
+    fresh sid session is still valid. The returned "key:secret" pair is then
+    used as `Authorization: token key:secret` on every subsequent request,
+    so the mobile session never expires (until the user logs out or the
+    token is regenerated/revoked in ERPNext).
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw("Not permitted", frappe.AuthenticationError)
+
+    user_doc = frappe.get_doc("User", user)
+
+    # Ensure an api_key exists
+    api_key = user_doc.api_key
+    if not api_key:
+        api_key = frappe.generate_hash(length=15)
+        user_doc.api_key = api_key
+
+    # Reuse the existing api_secret if present, otherwise generate one.
+    api_secret = None
+    if user_doc.get("api_secret"):
+        api_secret = get_decrypted_password(
+            "User", user, "api_secret", raise_exception=False
+        )
+    if not api_secret:
+        api_secret = frappe.generate_hash(length=15)
+        user_doc.api_secret = api_secret
+
+    user_doc.flags.ignore_permissions = True
+    user_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"token": f"{api_key}:{api_secret}"}
 
 @frappe.whitelist()
 def get_sfa_settings():
