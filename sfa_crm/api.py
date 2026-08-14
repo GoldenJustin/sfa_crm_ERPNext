@@ -112,6 +112,11 @@ def convert_lead_to_customer(lead_id, company):
     lead.db_set("status", "Converted")
     return cust.name
 
+def has_sfa_app_permission():
+    """Controls visibility of the SFA CRM app in the app switcher (hooks:
+    add_to_apps_screen). Any logged-in (non-guest) user can see it."""
+    return frappe.session.user and frappe.session.user != "Guest"
+
 @frappe.whitelist(allow_guest=True)
 def get_site_logo():
     logo = get_single_val("Website Settings", "app_logo") or get_single_val("Website Settings", "banner_image")

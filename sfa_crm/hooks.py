@@ -1,9 +1,22 @@
 app_name = "sfa_crm"
-app_title = "Sfa Crm"
+app_title = "SFA CRM"
 app_publisher = "Koda Technologies"
 app_description = "ERPNext App that help to manage Fieldforce SFA"
 app_email = "justinemsengi@gmail.com"
 app_license = "mit"
+app_logo_url = "/assets/sfa_crm/images/sfa_logo.svg"
+
+# Show SFA CRM as its own app in the app switcher (v15+). Clicking it
+# lands on the SFA CRM workspace with all doctypes, reports and settings.
+add_to_apps_screen = [
+    {
+        "name": "sfa_crm",
+        "logo": "/assets/sfa_crm/images/sfa_logo.svg",
+        "title": "SFA CRM",
+        "route": "/app/sfa-crm",
+        "has_permission": "sfa_crm.api.has_sfa_app_permission",
+    }
+]
 
 # Allow the mobile app to hit login endpoint without being logged in
 allow_guest_to_call = [
