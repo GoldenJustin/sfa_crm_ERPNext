@@ -192,6 +192,58 @@ def get_sfa_settings():
         return {"logo_url": None, "company_name": "Koda Technologies", "enable_delivery_module": 0, "enable_expense_module": 0}
 
 @frappe.whitelist()
+def get_sfa_items():
+    """Return the product catalog for the SFA mobile app.
+
+    Only items with 'Show in SFA App' (custom_show_in_sfa_app) enabled are
+    returned - this is enforced HERE on the server, so the mobile app can
+    never see items that were hidden in ERPNext. Disabled items are always
+    excluded. Selling prices are merged in a single call.
+    """
+    try:
+        filters = {"disabled": 0}
+        # Only filter by the flag if the field exists (fresh installs always
+        # have it via fixtures; this guards mid-migration states).
+        if frappe.get_meta("Item").has_field("custom_show_in_sfa_app"):
+            filters["custom_show_in_sfa_app"] = 1
+
+        items = frappe.get_all(
+            "Item",
+            filters=filters,
+            fields=["name", "item_name", "image", "stock_uom", "item_group"],
+            limit_page_length=0,
+        )
+
+        prices = frappe.get_all(
+            "Item Price",
+            filters={"selling": 1},
+            fields=["item_code", "price_list_rate"],
+            limit_page_length=0,
+        )
+        price_map = {}
+        for p in prices:
+            # keep the first (most recent by default ordering) selling price
+            price_map.setdefault(p.item_code, p.price_list_rate)
+
+        return {
+            "success": True,
+            "items": [
+                {
+                    "id": i.name,
+                    "name": i.item_name or i.name,
+                    "price": price_map.get(i.name, 0),
+                    "image": frappe.utils.get_url(i.image) if i.image else None,
+                    "uom": i.stock_uom,
+                    "group": i.item_group,
+                }
+                for i in items
+            ],
+        }
+    except Exception as e:
+        frappe.log_error(title="SFA Get Items Failed", message=traceback.format_exc())
+        return {"success": False, "error": str(e)}
+
+@frappe.whitelist()
 def sync_client(payload):
     data = json.loads(payload)
     try:

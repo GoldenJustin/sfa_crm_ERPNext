@@ -1,0 +1,268 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"b6JuEVJxuf\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\", \"col\": 12}}, {\"id\": \"P8aws1cZdM\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Visit Log\", \"col\": 3}}, {\"id\": \"oxJstIp2by\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Location Logs\", \"col\": 3}}, {\"id\": \"VvFatYE2k7\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Expenses\", \"col\": 3}}, {\"id\": \"WTYF2k6dZA\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"SFA Settings\", \"col\": 3}}, {\"id\": \"XdTooISTkG\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"YTr764hSGg\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Masters & Operations</b></span>\", \"col\": 12}}, {\"id\": \"iXmlBit77g\", \"type\": \"card\", \"data\": {\"card_name\": \"Field Operations\", \"col\": 4}}, {\"id\": \"vRgPF2FoP3\", \"type\": \"card\", \"data\": {\"card_name\": \"Routes & Territory\", \"col\": 4}}, {\"id\": \"ZAd7QAR59s\", \"type\": \"card\", \"data\": {\"card_name\": \"Items & Customers\", \"col\": 4}}, {\"id\": \"Z9RQJUzY4d\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"Y239chBDR8\", \"type\": \"card\", \"data\": {\"card_name\": \"Settings\", \"col\": 4}}]",
+ "creation": "2026-08-14 10:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "map",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "SFA CRM",
+ "links": [
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Field Operations",
+   "link_count": 4,
+   "link_to": null,
+   "link_type": null,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visit Log",
+   "link_count": 0,
+   "link_to": "Visit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Salesperson Location Log",
+   "link_count": 0,
+   "link_to": "Salesperson Location Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SFA Expense",
+   "link_count": 0,
+   "link_to": "SFA Expense",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Sales Team Tracker",
+   "link_count": 0,
+   "link_to": "Sales Team Tracker",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Routes & Territory",
+   "link_count": 3,
+   "link_to": null,
+   "link_type": null,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Sales Route",
+   "link_count": 0,
+   "link_to": "Sales Route",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer Territory Map",
+   "link_count": 0,
+   "link_to": "Customer Territory Map",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "New Customer Territory Map",
+   "link_count": 0,
+   "link_to": "New Customer Territory Map",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Items & Customers",
+   "link_count": 3,
+   "link_to": null,
+   "link_type": null,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Item",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Lead",
+   "link_count": 0,
+   "link_to": "Lead",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 3,
+   "link_to": null,
+   "link_type": null,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "Visit Log",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "SFA Team Performance",
+   "link_count": 0,
+   "link_to": "SFA Team Performance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Visit Log",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "SFA Visit & Value Report",
+   "link_count": 0,
+   "link_to": "SFA Visit & Value Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "SFA Expense",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "SFA Expense Summary",
+   "link_count": 0,
+   "link_to": "SFA Expense Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Settings",
+   "link_count": 1,
+   "link_to": null,
+   "link_type": null,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SFA Settings",
+   "link_count": 0,
+   "link_to": "SFA Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-14 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sfa Crm",
+ "name": "SFA CRM",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 99.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Visit Log",
+   "link_to": "Visit Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Location Logs",
+   "link_to": "Salesperson Location Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Expenses",
+   "link_to": "SFA Expense",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "SFA Settings",
+   "link_to": "SFA Settings",
+   "type": "DocType"
+  }
+ ],
+ "title": "SFA CRM"
+}
