@@ -43,6 +43,25 @@ bench:
 6. `/app/sfa-crm` workspace loads (HTTP 200)
 7. Custom mobile endpoint `sfa_crm.api.get_api_token` returns a valid API
    key/secret pair for a logged-in user
+8. Item's **Show in SFA App** checkbox is present and syncs correctly on a
+   fresh v15 install (see note below)
+
+### Item "Show in SFA App" not appearing on v15
+
+Earlier installs on Frappe v15 could end up **missing the "Show in SFA App"
+checkbox on Item**, even though the same install worked fine on v16. Root
+cause: `sfa_crm/fixtures/custom_field.json` used to include a stray custom
+field for `UTM Campaign` (a doctype that only exists on Frappe v16+, not on
+v15). Frappe imports that file's records sequentially in one pass, so
+hitting the missing `UTM Campaign` doctype partway through aborted the rest
+of the file — including the `Item` field, which was listed after it.
+
+Fixed by removing the unrelated `UTM Campaign` entry and giving `Item` its
+own dedicated customization file (`sfa_crm/sfa_crm/custom/item.json`, synced
+independently via `sync_on_migrate`), matching how `Customer` and
+`Delivery Note` are already handled. If you installed before this fix,
+run `bench --site $SITE_NAME migrate` after updating to the latest `main`
+to pick up the field.
 
 ### Contributing
 
